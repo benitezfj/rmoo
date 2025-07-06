@@ -13,32 +13,39 @@ modifiedCrowdingDistance(
 )
 }
 \arguments{
-\item{object}{An object of class 'rnsga2', usually resulting from a call
-to function r-nsga2. Fitness Function Objective Numbers}
+\item{object}{An object of class 'rnsga2', typically from a call to r-nsga2.
+Must contain fitness, population, fronts, popSize, and reference_points.}
 
-\item{extreme_points_as_ref_dirs}{}
+\item{epsilon}{Minimum allowed distance between solutions to avoid duplicates.}
+
+\item{weights}{A numeric vector of weights for preference distance (default is equal weights).}
+
+\item{normalization}{Type of normalization to apply: \code{"ever"}, \code{"front"}, or \code{"no"}.}
+
+\item{extreme_points_as_ref_dirs}{Logical; whether to use extreme points as reference directions.}
 }
 \value{
-A vector with the crowding-distance between individuals of a population.
+A list with:
+\describe{
+\item{survivors}{Indices of selected individuals}
+\item{indexmin}{Index of individuals with minimum scalarizing value (optional)}
+\item{reference_points}{Updated reference points matrix}
+}
 }
 \description{
 A Crowded-comparison approach.
 }
 \details{
-The crowded-comparison operator guides the selection process at the various
-stages of the algorithm toward a uniformly spread-out Pareto-optimal front
+The crowded-comparison operator maintain diversity in the Pareto front
+during multi-objective optimization. This version uses a reference point-based
+normalization and preference distance strategy.
 }
 \references{
-Kalyanmoy Deb and J. Sundar. 2006. Reference point based
-multi-objective optimization using evolutionary algorithms. In Proceedings of
-the 8th annual conference on Genetic and evolutionary computation (GECCO '06).
-Association for Computing Machinery, New York, NY, USA, 635–642.
-doi: 10.1145/1143997.1144112
+Kalyanmoy Deb and J. Sundar (2006). GECCO '06. doi:10.1145/1143997.1144112
 }
 \seealso{
 \code{\link[=rnsga2]{rnsga2()}}
 }
 \author{
 Francisco Benitez
-\email{benitezfj94@gmail.com}
 }

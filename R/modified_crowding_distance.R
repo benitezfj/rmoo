@@ -2,28 +2,29 @@
 #'
 #' A Crowded-comparison approach.
 #'
-#' The crowded-comparison operator guides the selection process at the various
-#' stages of the algorithm toward a uniformly spread-out Pareto-optimal front
+#' The crowded-comparison operator maintain diversity in the Pareto front
+#' during multi-objective optimization. This version uses a reference point-based
+#' normalization and preference distance strategy.
 #'
-#' @param object An object of class 'rnsga2', usually resulting from a call
-#' to function r-nsga2. Fitness Function Objective Numbers
-#' @param epsion
-#' @param weights
-#' @param normalization
-#' @param extreme_points_as_ref_dirs
+#' @param object An object of class 'rnsga2', typically from a call to r-nsga2.
+#'               Must contain fitness, population, fronts, popSize, and reference_points.
+#' @param epsilon Minimum allowed distance between solutions to avoid duplicates.
+#' @param weights A numeric vector of weights for preference distance (default is equal weights).
+#' @param normalization Type of normalization to apply: `"ever"`, `"front"`, or `"no"`.
+#' @param extreme_points_as_ref_dirs Logical; whether to use extreme points as reference directions.
 #'
 #' @author Francisco Benitez
-#' \email{benitezfj94@gmail.com}
 #'
-#' @references Kalyanmoy Deb and J. Sundar. 2006. Reference point based
-#' multi-objective optimization using evolutionary algorithms. In Proceedings of
-#' the 8th annual conference on Genetic and evolutionary computation (GECCO '06).
-#' Association for Computing Machinery, New York, NY, USA, 635–642.
-#' doi: 10.1145/1143997.1144112
+#' @references Kalyanmoy Deb and J. Sundar (2006). GECCO '06. doi:10.1145/1143997.1144112
 #'
 #' @seealso [rnsga2()]
 #'
-#' @return A vector with the crowding-distance between individuals of a population.
+#' @return A list with:
+#' \describe{
+#'   \item{survivors}{Indices of selected individuals}
+#'   \item{indexmin}{Index of individuals with minimum scalarizing value (optional)}
+#'   \item{reference_points}{Updated reference points matrix}
+#' }
 #' @export
 modifiedCrowdingDistance <- function(object,
                                      epsilon,
@@ -32,14 +33,19 @@ modifiedCrowdingDistance <- function(object,
                                      extreme_points_as_ref_dirs = FALSE) {
   fitness <- object@fitness
   population <- object@population
-  nObj <- ncol(object@fitness)
+  nObj <- ncol(fitness)
   fronts <- object@f
-  nFront <- length(object@f)
+  nFront <- length(fronts)
   popSize <- object@popSize
   reference_points <- object@reference_points
 
-  if (is.null(weights)) {
-    weights <- rep((1/nObj),nObj)
+  # if (is.null(weights)) {
+  #   weights <- rep((1/nObj),nObj)
+  # }
+  weights <- weights %||% rep(1 / nObj, nObj)
+
+  normalize_range <- function(mat, idx) {
+    apply(mat[idx, , drop = FALSE], 2, range)
   }
 
   ideal_point <- rep(Inf, nObj)
@@ -49,15 +55,12 @@ modifiedCrowdingDistance <- function(object,
   if (normalization == "ever") {
     ideal_point <- apply(rbind(ideal_point,fitness), 2, min)
     nadir_point <- apply(rbind(ideal_point,fitness), 2, max)
-  } else if (normalization == "front") {
-    if (length(fronts[[1]]) > 1) {
-      ideal_point <- apply(fitness[fronts[[1]],], 2, min)
-      nadir_point <- apply(fitness[fronts[[1]],], 2, max)
-    }
-  } else if (normalization == "no"){
-    ideal_point <- rep(1,nObj)
-    nadir_point <- rep(0,nObj)
-
+  } else if (normalization == "front" && length(fronts[[1]]) > 1) {
+    ideal_point <- apply(fitness[fronts[[1]],], 2, min)
+    nadir_point <- apply(fitness[fronts[[1]],], 2, max)
+  } else if (normalization == "no") {
+    ideal_point <- rep(1, nObj)
+    nadir_point <- rep(0, nObj)
   }
 
   if (extreme_points_as_ref_dirs){
@@ -79,7 +82,8 @@ modifiedCrowdingDistance <- function(object,
                                                     ref_points=reference_points,
                                                     weight=weights,
                                                     ideal_point=ideal_point,
-                                                    nadir_point=nadir_point)
+                                                    nadir_point=nadir_point
+                                                    )
 
   for (i in seq_len(nFront)) {
     #cat(i, " Iter: ", object@iter, "\n")
@@ -143,31 +147,47 @@ modifiedCrowdingDistance <- function(object,
   return(out)
 }
 
+#' Calculate Normalized Preference Distance
+
+#' Computes the weighted normalized Euclidean distance between a set of fitness
+#' vectors and a set of reference points.
+
+#' @param fitness A matrix of fitness values.
+#' @param ref_points A matrix of reference points.
+#' @param weight A numeric vector of weights for each objective.
+#' @param ideal_point A numeric vector of ideal point values.
+#' @param nadir_point A numeric vector of nadir point values.
+#'
+#' @return A matrix of distances where element (i, j) is the distance from
+#'        fitness to ref_points.
 #' @export
-calc_norm_pref_distance <- function(fitness, ref_points, weight, ideal_point, nadir_point){
-  if(!is.matrix(ref_points)){
-    ref_points <- t(ref_points)
-  }
-  if(!is.matrix(fitness)){
-    fitness <- t(fitness)
-  }
+calc_norm_pref_distance <- function(fitness, ref_points, weight, ideal_point, nadir_point) {
+  fitness <- as.matrix(fitness)
+  ref_points <- as.matrix(ref_points)
+  # if(!is.matrix(ref_points)){
+  #   ref_points <- t(ref_points)
+  # }
+  # if(!is.matrix(fitness)){
+  #   fitness <- t(fitness)
+  # }
 
   # Calculate the difference between fitness and ref_points
-  D <- matrix(rep(fitness,
-                  each=nrow(ref_points)),
-              ncol = ncol(ref_points),
-              byrow = FALSE) - matrix(rep(t(ref_points),nrow(fitness)),
-                                      ncol = ncol(fitness),
-                                      byrow = TRUE)
+  D <- matrix(rep(fitness, each = nrow(ref_points)),
+              ncol = ncol(ref_points), byrow = FALSE) -
+       matrix(rep(t(ref_points), nrow(fitness)),
+              ncol = ncol(fitness), byrow = TRUE)
 
   # Calculate the denominator
   denom <- nadir_point - ideal_point # New
-  denom[which(denom == 0)] <- 1 * 10^(-12) # New
+  denom[denom == 0] <- 1e-12
+  # denom[which(denom == 0)] <- 1e-12
 
   # Calculate the normalized preference distance
   N <- ((sweep(D, 2, denom, FUN = "/"))^2) * weight
-  N <- sqrt(apply(N, 1, sum) * length(weight))
+  N <- sqrt(rowSums(N) * length(weight))
+  # N <- sqrt(apply(N, 1, sum) * length(weight))
 
-  return(matrix(N, nrow(fitness), nrow(ref_points), byrow = TRUE))
+  matrix(N, nrow = nrow(fitness), ncol = nrow(ref_points), byrow = TRUE)
+  # return(matrix(N, nrow(fitness), nrow(ref_points), byrow = TRUE))
 
 }

@@ -1,8 +1,14 @@
-
+# Update Ideal Point
+#
+# Calculates the ideal point (minimum value per objective).
+#
+# @param object An object with a fitness matrix and an ideal_point vector.
+# @param nObj Number of objectives.
+# @return A numeric vector representing the updated ideal point.
 ##Ideal Point
 #' @export
 UpdateIdealPoint <- function(object, nObj) {
-  cost <- object@fitness
+  cost <- as.matrix(object@fitness)
   if (anyNA(object@ideal_point)) {
     ideal_point <- apply(cost, 2, min)
   } else {
@@ -11,10 +17,17 @@ UpdateIdealPoint <- function(object, nObj) {
   return(ideal_point)
 }
 
+# Update Worst Point
+#
+# Calculates the worst point (maximum value per objective).
+#
+# @param object An object with a fitness matrix and a worst_point vector.
+# @param nObj Number of objectives.
+# @return A numeric vector representing the updated worst point.
 ## Worst points
 #' @export
 UpdateWorstPoint <- function(object, nObj) {
-  cost <- object@fitness
+  cost <- as.matrix(object@fitness)
   if (anyNA(object@worst_point)) {
     worst_point <- apply(cost, 2, max)
   } else {
@@ -23,24 +36,38 @@ UpdateWorstPoint <- function(object, nObj) {
   return(worst_point)
 }
 
+# Perform Scalarizing to Find Extreme Points
+#
+# Calculates extreme points using the Achievement Scalarizing Function (ASF).
+#
+# @param population Population matrix.
+# @param fitness Fitness matrix.
+# @param smin Current minimum scalar values.
+# @param extreme_points Current extreme points matrix.
+# @param ideal_point Ideal point vector.
+# @return A list with updated extreme points and smin index.
 ## Extreme points
 #' @export
 PerformScalarizing <- function(population, fitness, smin, extreme_points, ideal_point) {
-  nPop <- nrow(population)
   nObj <- ncol(fitness)
-  if (!anyNA(smin)) {
-    F <- rbind(extreme_points, fitness)
-  } else {
+
+  if (anyNA(smin)) {
     extreme_points <- matrix(0, nObj, nObj)
     smin <- rep(Inf, nObj)
     F <- fitness
+  } else {
+    F <- rbind(extreme_points, fitness)
   }
-  fp <- sweep(F, 2, ideal_point)
+
+  fp <- sweep(F, 2, ideal_point, FUN = "-")
   w <- diag(1, nObj)
-  w[which(w == 0)] <- 1e-06
+  w[w == 0] <- 1e-6
+  # w[which(w == 0)] <- 1e-06
+
   sminj <- apply(fp, 1, function(x) max(x/w))
+
   for (j in 1:nObj) {
-    sminj_j <- min(sminj)
+    sminj_j <- min(sminj, na.rm = TRUE)
     ind <- which(sminj == sminj_j)
 
     if (length(ind) > 1)
@@ -87,6 +114,12 @@ PerformScalarizing <- function(population, fitness, smin, extreme_points, ideal_
 #     return(out)
 # }
 
+# Calculate Nadir Point
+#
+# Computes the Nadir point from the extreme and ideal points.
+#
+# @param object An object containing extreme_points, ideal_point, worst_point, worst_of_front, worst_of_population.
+# @return A numeric vector representing the nadir point.
 ## Nadir Point
 #' @export
 get_nadir_point <- function(object) {
